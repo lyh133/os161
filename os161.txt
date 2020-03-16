@@ -1,0 +1,792 @@
+!!section banner
+#######  #####  #######    #    ####### ####### #######
+#       #     # #         ##    #       #    #  #
+#             # #        # #    #           #   #
+ #####   #####   #####     #     #####     #     #####
+      # #             #    #          #   #           #
+#     # #       #     #    #    #     #   #     #     #
+ #####  #######  #####   #####   #####    #      #####
+
+5251575	Liang, Yuehao                          	3781/2 COMPA1       
+
+Submissions:-
+
+S 0	Sun Mar  1 14:45:28 2020	5251575 all asst1 -11:-23
+
+Fri Mar 13 21:19:11 2020		## sitar23.orchestra.cse.unsw.EDU.AU ##
+!!section listing
+Cloning into 'src'...
+
+-------------------------------
+- Recent commits:
+-------------------------------
+commit 8df3177c95010c42b7f5c956c88531360086d704
+Author: z5251575 <z5251575@cse.unsw.edu.au>
+Date:   Sun Mar 1 14:38:22 2020 +1100
+
+    Commit outstanding changes
+
+commit ab1f99b5a31622abf5f9e63877f5a40ff71f8d41
+Author: Kevin Elphinstone <k.elphinstone@unsw.edu.au>
+Date:   Fri Feb 28 16:59:10 2020 +1100
+
+    Initial commit
+-------------------------------
+
+diff --git a/kern/asst1/math.c b/kern/asst1/math.c
+index fd3afe9..1f004b8 100644
++++ b/kern/asst1/math.c
+@@ -1,217 +1,226 @@
+  #include "opt-synchprobs.h"
+ #include "math_tester.h"
+ #include <types.h>
+ #include <lib.h>
+ #include <test.h>
+ #include <thread.h>
+ #include <synch.h>
+ 
+ 
+ 
+ enum {
+         NADDERS = 10,        /* the number of adder threads */
+         NADDS   = 10000, /* the number of overall increments to perform */
+ };
+ 
+ /*
+  * Declare the counter variable that all the adder() threads increment
+  *
+  * Declaring it "volatile" instructs the compiler to always (re)read the
+  * variable from memory and not optimise by removing memory references
+  * and re-using the content of a register.
+  */
+ volatile unsigned long int counter;
+ 
+ /*
+  * Declare an array of adder counters to count per-thread
+  * increments. These are used for printing statistics.
+  */
+ unsigned long int adder_counters[NADDERS];
+ 
+ 
+ /*
+  * We use a semaphore to wait for adder() threads to finish
+  */
+ struct semaphore *finished;
+ 
+ 
+ /*
+  * **********************************************************************
+  * ADD YOUR OWN VARIABLES HERE AS NEEDED
+  * **********************************************************************
+  */
++struct semaphore *mutex;
+ 
+ 
+ /*
+  * adder()
+  *
+  *  Each adder thread simply keeps incrementing the counter until we
+  *  hit the max value.
+  *
+  * **********************************************************************
+  * YOU NEED TO INSERT SYNCHRONISATION PRIMITIVES APPROPRIATELY
+  * TO ENSURE COUNTING IS CORRECTLY PERFORMED.
+  * **********************************************************************
+  *
+  * You should not re-write the existing code.
+  *
+  * + Only the correct number of increments are performed
+  * + Ensure x+1 == x+1
+  * + Ensure that the statistics kept match the number of increments
+  *   performed.
+  * + only synchronise the critical section, no more.
+  *
+  */
+ 
+ static void adder(void * unusedpointer, unsigned long addernumber)
+ {
++		
+         unsigned long int a, b;
+         int flag = 1;
+ 
+         /*
+          * Avoid unused variable warnings.
+          */
+         (void) unusedpointer; /* remove this line if variable is used */
+ 
+ 
+ 
+         while (flag) {
+                 /* loop doing increments until we achieve the overall number
+                    of increments */
++				P(mutex);
+                 a = counter;
+                 if (a < NADDS) {
+                         counter = counter + 1;
++                        b = counter;                                               
++                        V(mutex);
++                        
+                         
+                         math_test_1(addernumber); /* We use this for testing, please leave this here. */
+ 
+                         						
+                         math_test_2(addernumber); /* We use this for testing, please leave this here.
+                                                    * Also note it should NOT execute mutually exclusively
+                                                    */
+ 
+                         /*
+                          * now count the number of increments we perform  for statistics.
+                          * addernumber is effectively the thread number of this thread.
+                          * Note: An individual array location is only accessed by a single
+                          * thread and has no concurrency issues.
+                          */
+                         adder_counters[addernumber]++;
+ 
+                         /* check we are getting sane results. This should not print in a correct
+                          * solution.
+                          */
+                         if (a + 1 != b) {
+                                 kprintf("In thread %ld, %ld + 1 == %ld?\n",
+                                         addernumber, a, b) ;
+                         }
+                 } else {
++                		V(mutex);
+                         flag = 0;
+                 }
+         }
+ 
+         /* signal the main thread we have finished and then exit */
+         V(finished);
+ 
+         thread_exit();
+ }
+ 
+ /*
+  * maths()
+  *
+  * This function:
+  *
+  * + Initialises the counter variables
+  * + Creates a semaphore to wait for adder threads to complete
+  * + Starts the define number of adder threads
+  * + waits, prints statistics, cleans up, and exits
+  */
+ 
+ int maths (int data1, char **data2)
+ {
+         int index, error;
+         unsigned long int sum;
+ 
+         /*
+          * Avoid unused variable warnings from the compiler.
+          */
+         (void) data1;
+         (void) data2;
+ 
+         /* initialise the counter before the threads start */
+ 
+         counter = 0;
+         for (index = 0; index < NADDERS; index++) {
+                 adder_counters[index] = 0;
+         }
+ 
+         /* create a semaphore to allow main thread to wait on workers */
++        mutex = sem_create("mutex",1);
++        if (mutex == NULL) 
++        {
++        	panic("I'm screwed");
++        }
++        
+ 
+         finished = sem_create("finished", 0);
+ 
+         if (finished == NULL) {
+                 panic("maths: sem create failed");
+         }
+ 
+         /*
+          * ********************************************************************
+          * INSERT ANY INITIALISATION CODE YOU REQUIRE HERE
+          * ********************************************************************
+          */
+ 
+ 
+         /*
+          * Start NADDERS adder() threads.
+          */
+ 
+         kprintf("Starting %d adder threads\n", NADDERS);
+ 
+         for (index = 0; index < NADDERS; index++) {
+ 
+                 error = thread_fork("adder thread", NULL, &adder, NULL, index);
+ 
+                 /*
+                  * panic() on error as we can't progress if we can't create threads.
+                  */
+ 
+                 if (error) {
+                         panic("adder: thread_fork failed: %s\n",
+                               strerror(error));
+                 }
+         }
+ 
+ 
+         /*
+          * Wait until the adder threads complete by waiting on
+          * the semaphore NADDER times.
+          */
+ 
+         for (index = 0; index < NADDERS; index++) {
+                 P(finished);
+         }
+ 
+         kprintf("Adder threads performed %ld adds\n", counter);
+ 
+         /* Print out some statistics, they should add up */
+         sum = 0;
+         for (index = 0; index < NADDERS; index++) {
+                 sum += adder_counters[index];
+                 kprintf("Adder %d performed %ld increments.\n", index,
+                         adder_counters[index]);
+         }
+         kprintf("The adders performed %ld increments overall (expected %d)\n", sum, NADDS);
+ 
+         /*
+          * **********************************************************************
+          * INSERT ANY CLEANUP CODE YOU REQUIRE HERE
+          * **********************************************************************
+          */
+ 
+ 
+         /* clean up the semaphore we allocated earlier */
+         sem_destroy(finished);
+         return 0;
+ }
+diff --git a/kern/asst1/producerconsumer.c b/kern/asst1/producerconsumer.c
+index 0136580..901e0c0 100644
++++ b/kern/asst1/producerconsumer.c
+@@ -1,65 +1,91 @@
+ /* This file will contain your solution. Modify it as you wish. */
+ #include <types.h>
+ #include <lib.h>
+ #include <synch.h>
+ #include "producerconsumer_driver.h"
+ 
+ /* Declare any variables you need here to keep track of and
+    synchronise your bounded. A sample declaration of a buffer is shown
+    below. It is an array of pointers to items.
+ 
+    You can change this if you choose another implementation.
+    However, you should not have a buffer bigger than BUFFER_SIZE
+ */
++struct semaphore *empty;
++struct semaphore *mutex;
++struct semaphore *full;
+ data_item_t * item_buffer[BUFFER_SIZE];
++static int lastIndex(data_item_t * buff[]);
+ 
+ 
+ /* consumer_receive() is called by a consumer to request more data. It
+    should block on a sync primitive if no data is available in your
+    buffer. It should not busy wait! */
+ 
+ data_item_t * consumer_receive(void)
+ {     
++        P(full);
++        P(mutex);
++        int deleteIndex = lastIndex(item_buffer) - 1;
++        data_item_t *item = item_buffer[deleteIndex];
++        item_buffer[deleteIndex] = NULL;
++        V(mutex);
++        V(empty);
+         return item;
+ }
+ 
+ /* procucer_send() is called by a producer to store data in your
+    bounded buffer.  It should block on a sync primitive if no space is
+    available in your buffer. It should not busy wait!*/
+ 
+ void producer_send(data_item_t *item)
+ {
++        P(empty);
++        P(mutex);
++        int appendIndex = lastIndex(item_buffer);
++        item_buffer[appendIndex] = item;
++        V(mutex);
++        V(full);
+ }
+ 
++static int lastIndex(data_item_t * buff[])
++{
++	for(int i = 0; i < BUFFER_SIZE; i++) 
++	{
++		if(buff[i] == NULL)
++		{
++			return i;
++		}	
++	
++	}
++	return BUFFER_SIZE;
+ 
++}
+ 
+ 
+ /* Perform any initialisation (e.g. of global data) you need
+    here. Note: You can panic if any allocation fails during setup */
+ 
+ void producerconsumer_startup(void)
+ {
++    empty = sem_create("empty",BUFFER_SIZE);
++    if(!empty) {
++        panic("producerconsume_startup: couldn't create empty semaphore\n");
++  	}
++  	mutex = sem_create("mutex", 1);
++    if(!mutex) {
++        panic("producerconsume_startup: couldn't create mutex semaphore\n");
++  	}
++  	full = sem_create("full", 0);
++    if(!full) {
++        panic("producerconsume_startup: couldn't create full semaphore\n");
++  	}
+ }
+ 
+ /* Perform any clean-up you need here */
+ void producerconsumer_shutdown(void)
+ {
++	sem_destroy(empty);
++	sem_destroy(mutex);
++	sem_destroy(full);
+ }
+diff --git a/kern/asst1/twolocks.c b/kern/asst1/twolocks.c
+index 40b3387..f50a64a 100644
++++ b/kern/asst1/twolocks.c
+@@ -1,214 +1,213 @@
+ #include "opt-synchprobs.h"
+ #include <types.h>
+ #include <lib.h>
+ #include <test.h>
+ #include <thread.h>
+ #include <synch.h>
+ #include "twolocks.h"
+ 
+ 
+ /* declare (local to this file) pointers to the synch variables that
+    we will allocate later */
+ 
+ static struct lock *locka, *lockb;
+ static struct semaphore *finished;
+ 
+ /* a constant indicating how many times the locking loops go round */
+ #define NUM_LOOPS 1000
+ 
+ 
+ /* Bill, Ben, Bob and Bruce are four threads that simply spin for a while,
+    acquiring and releasing locks */
+ 
+ static void bill(void * unusedpointer, unsigned long unusedint)
+ {
+         int i;
+         (void) unusedpointer;
+         (void) unusedint;
+ 
+         kprintf("Hi, I'm Bill\n");
+ 
+         for (i = 0; i < NUM_LOOPS; i++) {
+ 
+                 lock_acquire(lockb);
+ 
+                 holds_lockb();          /* Critical section */
+ 
+                 lock_release(lockb);
+                
+                 lock_acquire(lockb);
++                lock_acquire(locka);
+                                         /* Bill now holds both locks and can do
+                                          what ever bill needs to do while holding
+                                          the locks */
+                 holds_locka_and_b();
+ 
+                 lock_release(lockb);
+                 lock_release(locka);
+         }
+ 
+         kprintf("Bill says 'bye'\n");
+         V(finished); /* indicate to the parent thread Bill has
+                         finished */
+ }
+ 
+ static void bruce(void * unusedpointer, unsigned long unusedint)
+ {
+         int i;
+         (void) unusedpointer;
+         (void) unusedint;
+ 
+         kprintf("Hi, I'm Bruce\n");
+ 
+         for (i = 0; i < NUM_LOOPS; i++) {
+ 
+                 lock_acquire(lockb);
+ 
+                 holds_lockb();          /* Critical section */
+ 
+                 lock_release(lockb);
+ 
+         }
+ 
+         kprintf("Bruce says 'bye'\n");
+         V(finished); /* indicate to the parent thread Bruce has
+                         finished */
+ }
+ 
+ static void ben(void * unusedpointer, unsigned long unusedint)
+ {
+         int i;
+         (void) unusedpointer;
+         (void) unusedint;
+ 
+         kprintf("Hi, I'm Ben\n");
+ 
+         for (i = 0; i < NUM_LOOPS; i++) {
+ 
+                 lock_acquire(locka);
+ 
+                 holds_locka();          /* Critical section */
+ 
+                 lock_release(locka);
+ 
+                 lock_acquire(lockb);
+                 lock_acquire(locka);
+ 
+                                         /* Ben now holds both locks and can do
+                                          what ever ben needs to do while holding
+                                          the locks */
+                 holds_locka_and_b();
+ 
+                 lock_release(locka);
+                 lock_release(lockb);
+         }
+ 
+         kprintf("Ben says 'bye'\n");
+         V(finished); /* indicate to the parent thread Bill has
+                         finished */
+ }
+ 
+ static void bob(void * unusedpointer, unsigned long unusedint)
+ {
+ 
+         int i;
+         (void) unusedpointer;
+         (void) unusedint;
+ 
+         kprintf("Hi, I'm Bob\n");
+ 
+         for (i = 0; i < NUM_LOOPS; i++) {
+                 lock_acquire(locka);
+ 
+                 holds_locka();          /* Critical section */
+ 
+                 lock_release(locka);
+ 
+         }
+ 
+         kprintf("Bob says 'bye'\n");
+         V(finished); /* indicate to the parent thread Bob has
+                         finished */
+ 
+ }
+ 
+ 
+ int twolocks (int data1, char ** data2)
+ {
+         int error;
+         /*
+          * Avoid unused variable warnings.
+          */
+         (void) data1;
+         (void) data2;
+ 
+         kprintf("Locking frenzy starting up\n");
+ 
+ 
+         finished = sem_create("finished", 0);
+         KASSERT(finished != 0); /* KASSERT panics if the condition is
+                                    false. Okay for development, but
+                                    production code should handle this
+                                    better. */
+ 
+         locka = lock_create("lock_a");
+         KASSERT(locka != 0);
+ 
+         lockb = lock_create("lock_b");
+         KASSERT(lockb != 0);
+ 
+ 
+ 
+         /*
+          * start Bill and, if there was an error, panic().
+          *
+          * One should not panic for normal system calls, but it is okay
+          * for this assignment if the error is unrecoverable.
+          */
+         error = thread_fork("bill thread", NULL, &bill, NULL, 0);
+ 
+         if (error) {
+                 panic("bill: thread_fork failed: %s\n", strerror(error));
+         }
+ 
+ 
+         /*
+          * start Ben, and panic() on error.
+          */
+         error = thread_fork("ben thread", NULL, &ben, NULL, 0);
+ 
+         if (error) {
+                 panic("ben: thread_fork failed: %s\n", strerror(error));
+         }
+ 
+ 
+         /*
+          * start Bob, and panic() on error.
+          */
+         error = thread_fork("bob thread", NULL, &bob, NULL, 0);
+ 
+         if (error) {
+                 panic("bob: thread_fork failed: %s\n", strerror(error));
+         }
+ 
+ 
+         /*
+          * start Bruce, and panic() on error.
+          */
+         error = thread_fork("bruce thread", NULL, &bruce, NULL, 0);
+ 
+         if (error) {
+                 panic("bruce: thread_fork failed: %s\n", strerror(error));
+         }
+ 
+ 
+         /* Wait for the threads to signal finished */
+         P(finished);
+         P(finished);
+         P(finished);
+         P(finished);
+ 
+         kprintf("Locking frenzy finished\n");
+         return 0;
+ }
+Starting.
+Top-level configure...
+Running bmake depend...
+Running bmake...
+Running bmake install...
+!!section tests
+** Test 1: Maths Synchronisation (provided in distribution)
+--------------------------------
+** Test passed
+--------------------------------
+** Test 2: Check math_test_1 is still called
+--------------------------------
+** Test passed
+--------------------------------
+** Test 3: Check math_test_2 is still called
+--------------------------------
+** Test passed
+--------------------------------
+** Test 4: Check math_test_1 is in the critical section
+--------------------------------
+** Test failed (error detected). Output difference:-
+
+OS/161 base system version 2.0.3				OS/161 base system version 2.0.3
+(with locks&CVs solution)					(with locks&CVs solution)
+Copyright (c) 2000, 2001-2005, 2008-2011, 2013, 2014		Copyright (c) 2000, 2001-2005, 2008-2011, 2013, 2014
+   President and Fellows of Harvard College.  All rights rese	   President and Fellows of Harvard College.  All rights rese
+
+Put-your-group-name-here's system version 0 (ASST1 #4)		Put-your-group-name-here's system version 0 (ASST1 #4)
+
+1884k physical memory available					1884k physical memory available
+Device probe...							Device probe...
+lamebus0 (system main bus)					lamebus0 (system main bus)
+emu0 at lamebus0						emu0 at lamebus0
+ltrace0 at lamebus0						ltrace0 at lamebus0
+ltimer0 at lamebus0						ltimer0 at lamebus0
+beep0 at ltimer0						beep0 at ltimer0
+rtclock0 at ltimer0						rtclock0 at ltimer0
+lrandom0 at lamebus0						lrandom0 at lamebus0
+random0 at lrandom0						random0 at lrandom0
+lser0 at lamebus0						lser0 at lamebus0
+con0 at lser0							con0 at lser0
+
+cpu0: MIPS/161 (System/161 2.x) features 0x0			cpu0: MIPS/161 (System/161 2.x) features 0x0
+OS/161 kernel: 1a						OS/161 kernel: 1a
+Starting 10 adder threads					Starting 10 adder threads
+panic: FAIL: mutual exclusion does not hold in math_test_1    |	Adder threads performed 10000 adds
+							      >	Adder 0 performed 1008 increments.
+							      >	Adder 1 performed 1015 increments.
+							      >	Adder 2 performed 992 increments.
+							      >	Adder 3 performed 992 increments.
+							      >	Adder 4 performed 1005 increments.
+							      >	Adder 5 performed 1005 increments.
+							      >	Adder 6 performed 996 increments.
+							      >	Adder 7 performed 1006 increments.
+							      >	Adder 8 performed 983 increments.
+							      >	Adder 9 performed 998 increments.
+							      >	The adders performed 10000 increments overall (expected 10000
+							      >	Operation took 33.998581040 seconds
+							      >	OS/161 kernel: q
+							      >	Shutting down.
+							      >	The system is halted.
+sys161: System/161 release 2.0.8, compiled Feb 25 2019 09:34:40
+sys161: trace: software-requested debugger stop
+sys161: Not waiting for debugger...
+sys161: 84913070 cycles (63630381 run, 21282689 global-idle)
+sys161:   cpu0: 42347692 kern, 0 user, 0 idle; 142136 ll, 142136/0 sc, 412594 sync
+sys161: 13411 irqs 0 exns 0r/0w disk 0r/628w console 0r/0w/1m emufs 0r/0w net
+sys161: Elapsed real time: 0.693262 seconds (122.483 mhz)
+sys161: Elapsed virtual time: 2.549504623 seconds (25 mhz)
+--------------------------------
+** Test 5: Check math_test_2 is not in the critical section
+--------------------------------
+** Test passed
+--------------------------------
+** Test 6: Simple deadlock (provided in distribution)
+--------------------------------
+** Test passed
+--------------------------------
+** Test 7: Testing if holds_locka is called
+--------------------------------
+** Test passed
+--------------------------------
+** Test 8: Testing if holds_lockb is called
+--------------------------------
+** Test passed
+--------------------------------
+** Test 9: Testing if holds_locka_and_b is called
+--------------------------------
+** Test passed
+--------------------------------
+** Test 10: Testing holds_locka is exclusive
+--------------------------------
+** Test passed
+--------------------------------
+** Test 11: Testing holds_locka does not block holds_lockb
+--------------------------------
+** Test passed
+--------------------------------
+** Test 12: Testing holds_lockb is exclusive
+--------------------------------
+** Test passed
+--------------------------------
+** Test 13: Testing holds_lockb does not block holds_locka
+--------------------------------
+** Test passed
+--------------------------------
+** Test 14: Testing holds_locka_and_b is exclusive
+--------------------------------
+** Test passed
+--------------------------------
+** Test 15: Producer/consumer, one to one
+--------------------------------
+** Test passed
+--------------------------------
+** Test 16: Producer/consumer, two to five, small queue
+--------------------------------
+** Test passed
+--------------------------------
+** Test 17: Producer/consumer, one to many
+--------------------------------
+** Test passed
+--------------------------------
+** Test 18: Producer/consumer, small group, big queue
+--------------------------------
+** Test passed
+--------------------------------
+** Test 19: Producer/consumer, fifteen to fifteen
+--------------------------------
+** Test passed
+--------------------------------
+** Test 20: Producer/consumer, test queue is FIFO
+--------------------------------
+** Test failed (error detected). Output difference:-
+
+OS/161 base system version 2.0.3				OS/161 base system version 2.0.3
+(with locks&CVs solution)					(with locks&CVs solution)
+Copyright (c) 2000, 2001-2005, 2008-2011, 2013, 2014		Copyright (c) 2000, 2001-2005, 2008-2011, 2013, 2014
+   President and Fellows of Harvard College.  All rights rese	   President and Fellows of Harvard College.  All rights rese
+
+Put-your-group-name-here's system version 0 (ASST1 #20)		Put-your-group-name-here's system version 0 (ASST1 #20)
+
+1884k physical memory available					1884k physical memory available
+Device probe...							Device probe...
+lamebus0 (system main bus)					lamebus0 (system main bus)
+emu0 at lamebus0						emu0 at lamebus0
+ltrace0 at lamebus0						ltrace0 at lamebus0
+ltimer0 at lamebus0						ltimer0 at lamebus0
+beep0 at ltimer0						beep0 at ltimer0
+rtclock0 at ltimer0						rtclock0 at ltimer0
+lrandom0 at lamebus0						lrandom0 at lamebus0
+random0 at lrandom0						random0 at lrandom0
+lser0 at lamebus0						lser0 at lamebus0
+con0 at lser0							con0 at lser0
+
+cpu0: MIPS/161 (System/161 2.x) features 0x0			cpu0: MIPS/161 (System/161 2.x) features 0x0
+OS/161 kernel: 1c						OS/161 kernel: 1c
+Buffer not in order, test failed...Operation took 0.072852800 |	Test 6 SUCCEEDED
+							      >	Operation took 0.040075840 seconds
+OS/161 kernel: q						OS/161 kernel: q
+Shutting down.							Shutting down.
+The system is halted.						The system is halted.
+sys161: System/161 release 2.0.8, compiled Feb 25 2019 09:34:40
+sys161: 57212582 cycles (33475820 run, 23736762 global-idle)
+sys161:   cpu0: 9739058 kern, 0 user, 0 idle; 33227 ll, 33227/0 sc, 121049 sync
+sys161: 1675 irqs 0 exns 0r/0w disk 0r/668w console 0r/0w/1m emufs 0r/0w net
+sys161: Elapsed real time: 0.175180 seconds (326.593 mhz)
+sys161: Elapsed virtual time: 1.343322183 seconds (25 mhz)
+--------------------------------
+** Test 21: Producer/consumer, test consumer blocks on empty queue
+--------------------------------
+** Test passed
+--------------------------------
+** Test 22: Producer/consumer, test producer blocks on full queue
+--------------------------------
+** Test passed
+--------------------------------
+!!section assess
+
+!!perftab	** PERFORMANCE ANALYSIS **
+
+Test  1 (1)	Maths Synchronisation (provided in distribution)   ..  ..  !!PASSed
+Test  2 (0.5)	Check math_test_1 is still called  ..  ..  ..  ..  ..  ..  !!PASSed
+Test  3 (0.5)	Check math_test_2 is still called  ..  ..  ..  ..  ..  ..  !!PASSed
+Test  4 (1)	Check math_test_1 is in the critical section   ..  ..  ..  !!FAILed (-1)
+Test  5 (1)	Check math_test_2 is not in the critical section   ..  ..  !!PASSed
+Test  6 (1)	Simple deadlock (provided in distribution) ..  ..  ..  ..  !!PASSed
+Test  7 (0.3)	Testing if holds_locka is called   ..  ..  ..  ..  ..  ..  !!PASSed
+Test  8 (0.3)	Testing if holds_lockb is called   ..  ..  ..  ..  ..  ..  !!PASSed
+Test  9 (0.4)	Testing if holds_locka_and_b is called ..  ..  ..  ..  ..  !!PASSed
+Test 10 (1)	Testing holds_locka is exclusive   ..  ..  ..  ..  ..  ..  !!PASSed
+Test 11 (1)	Testing holds_locka does not block holds_lockb ..  ..  ..  !!PASSed
+Test 12 (1)	Testing holds_lockb is exclusive   ..  ..  ..  ..  ..  ..  !!PASSed
+Test 13 (1)	Testing holds_lockb does not block holds_locka ..  ..  ..  !!PASSed
+Test 14 (1)	Testing holds_locka_and_b is exclusive ..  ..  ..  ..  ..  !!PASSed
+Test 15 (2)	Producer/consumer, one to one  ..  ..  ..  ..  ..  ..  ..  !!PASSed
+Test 16 (3)	Producer/consumer, two to five, small queue .  ..  ..  ..  !!PASSed
+Test 17 (3)	Producer/consumer, one to many ..  ..  ..  ..  ..  ..  ..  !!PASSed
+Test 18 (2)	Producer/consumer, small group, big queue  ..  ..  ..  ..  !!PASSed
+Test 19 (3)	Producer/consumer, fifteen to fifteen  ..  ..  ..  ..  ..  !!PASSed
+Test 20 (2)	Producer/consumer, test queue is FIFO  ..  ..  ..  ..  ..  !!FAILed (-2)
+Test 21 (2)	Producer/consumer, test consumer blocks on empty queue ..  !!PASSed
+Test 22 (2)	Producer/consumer, test producer blocks on full queue  ..  !!PASSed
+
+!!perfmark	** TOTAL PERFORMANCE MARK:    27/30
+
+!!marktab	**  MARKER'S  ASSESSMENT  **
+
+
+!!earlybonus	** EARLY BONUS (12 DAYS EARLY)	 3
+
+!!finalmark	**  FINAL  ASSIGNMENT  MARK:	27/30
+
+5251575	Liang, Yuehao                          	3781/2 COMPA1       
+    
+
